@@ -1,8 +1,35 @@
 from fastapi import FastAPI
+from contextlib import asynccontextmanager
 from app.database import get_connection
 from psycopg2.extras import RealDictCursor
+from app.api.ryanair import get_all_airports
+from app.logger import get_logger
+from app.services.airports import insert_airports_to_db
 
-app = FastAPI(title="Flight Scanner")
+
+logger = get_logger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("Server starting...")
+
+    try:
+        airports = get_all_airports()
+        if airports:
+            airports_inserted = insert_airports_to_db(airports=airports)
+            logger.info(f"Successfully inserted: {airports_inserted} rows to airports table")
+        else:
+            logger.warning(f"No airports returned from API")
+    except Exception as e:
+        logger.error(f"Failed to sync airports: {e}")
+
+    yield
+
+    logger.info("Server shutting down...")
+
+
+app = FastAPI(title="Flight Scanner", lifespan=lifespan)
 
 
 @app.get("/health")
