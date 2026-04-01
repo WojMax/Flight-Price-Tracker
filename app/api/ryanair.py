@@ -1,6 +1,6 @@
 import httpx
 from app.logger import get_logger
-from app.services.db_sync import get_all_polish_airports
+from app.services.db_sync import get_all_polish_airports_db, get_all_routes_db
 
 logger = get_logger(__name__)
 
@@ -26,7 +26,7 @@ def get_all_routes() -> list[tuple[str,str,str]]:
         logger.error(f"Failed to fetch routes for all airports: {e}")
         return []
     airports_dict = {airport["iataCode"]: airport for airport in routes_aggregated_json["airports"]}
-    airports = get_all_polish_airports()
+    airports = get_all_polish_airports_db()
     if not airports:
         logger.warning("No Polish airports found in DB")
         return []
@@ -46,3 +46,25 @@ def get_all_routes() -> list[tuple[str,str,str]]:
             logger.warning(f"Airport {airport} not found in Ryanair aggregate data")
             continue
     return list(set(all_airport_routes))
+
+
+def get_all_schedules() -> list[tuple[int,str]]:
+    all_schedules = []
+    routes = get_all_routes_db()
+    if routes:
+        for i, route in enumerate(routes):
+            logger.info(f"Fetching schedules {i + 1}/{len(routes)}: {route[1]}->{route[2]}")
+            url = f'https://www.ryanair.com/api/farfnd/v4/oneWayFares/{route[1]}/{route[2]}/availabilities'
+            try:
+                response = httpx.get(url)
+                response.raise_for_status()
+                schedules_json = response.json()
+            except httpx.HTTPError as e:
+                logger.error(f"Failed to fetch routes for {route[1]}->{route[2]}: {e}")
+                continue
+            for schedule in schedules_json:
+                all_schedules.append((route[0],schedule))
+        return all_schedules
+    else:
+        logger.warning("No routes found in DB")
+        return []

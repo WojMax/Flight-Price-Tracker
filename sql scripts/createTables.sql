@@ -41,3 +41,15 @@ CONSTRAINT unique_route UNIQUE (Airline, OriginAirport, DestinationAirport)
 
 INSERT INTO airlines(code, name)
 VALUES ('FR', 'Ryanair')
+
+
+
+
+CREATE TABLE schedules (
+    ScheduleID    INTEGER   PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+    RouteID       INTEGER   NOT NULL REFERENCES routes(RouteID),
+    FlightDate    DATE      NOT NULL,
+    DateAdded timestamp NOT NULL DEFAULT NOW(),
+    DateModified timestamp NOT NULL DEFAULT NOW(),
+    CONSTRAINT unique_schedule UNIQUE (RouteID, FlightDate)
+);

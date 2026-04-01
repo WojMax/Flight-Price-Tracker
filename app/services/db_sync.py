@@ -22,7 +22,7 @@ def insert_airports_to_db(airports: list[tuple[str, str, str]] ) -> int:
     return airports_inserted
 
 
-def get_all_polish_airports() -> list[str] | None:
+def get_all_polish_airports_db() -> list[str] | None:
     connection = get_connection()
     cursor = connection.cursor()
 
@@ -60,3 +60,39 @@ def insert_routes_to_db(routes: list[tuple[str, str, str]] ) -> int:
     connection.close()
 
     return routes_inserted
+
+
+def get_all_routes_db() -> list[tuple[int,str,str]] | None:
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    cursor.execute("SELECT routeid, originairport, destinationairport FROM routes;")
+
+    routes = cursor.fetchall()
+    cursor.close()
+    connection.close()
+
+    if routes:
+        return routes
+    return None
+
+
+def insert_schedules_to_db(schedules: list[tuple[int,str]] ) -> int:
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    cursor.execute("DELETE FROM schedules WHERE FlightDate < CURRENT_DATE;")
+
+    cursor.executemany("""
+                INSERT INTO schedules (routeid, flightdate)
+                VALUES (%s, %s)
+                ON CONFLICT (routeid, flightdate) DO UPDATE
+                SET datemodified = NOW()
+            """, schedules)
+
+    connection.commit()
+    schedules_inserted = cursor.rowcount
+    cursor.close()
+    connection.close()
+
+    return schedules_inserted

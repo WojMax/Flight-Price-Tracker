@@ -2,9 +2,9 @@ from fastapi import FastAPI
 from contextlib import asynccontextmanager
 from app.database import get_connection
 from psycopg2.extras import RealDictCursor
-from app.api.ryanair import get_all_airports, get_all_routes
+from app.api.ryanair import get_all_airports, get_all_routes, get_all_schedules
 from app.logger import get_logger
-from app.services.db_sync import insert_airports_to_db, insert_routes_to_db
+from app.services.db_sync import insert_airports_to_db, insert_routes_to_db, insert_schedules_to_db
 
 logger = get_logger(__name__)
 
@@ -30,9 +30,20 @@ async def lifespan(app: FastAPI):
             routes_inserted = insert_routes_to_db(routes=all_airport_routes)
             logger.info(f"Successfully inserted: {routes_inserted} rows to routes table")
         else:
-            logger.warning(f"No airports returned from API")
+            logger.warning(f"No routes returned from API")
     except Exception as e:
-        logger.error(f"Failed to sync airports: {e}")
+        logger.error(f"Failed to sync routes: {e}")
+
+    logger.info("Start fetching schedules...")
+    try:
+        all_schedules = get_all_schedules()
+        if all_schedules:
+            schedules_inserted = insert_schedules_to_db(schedules=all_schedules)
+            logger.info(f"Successfully inserted: {schedules_inserted} rows to schedules table")
+        else:
+            logger.warning(f"No schedules returned from API")
+    except Exception as e:
+        logger.error(f"Failed to sync schedules: {e}")
 
     yield
 
