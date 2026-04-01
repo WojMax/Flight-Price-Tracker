@@ -41,11 +41,17 @@ def insert_routes_to_db(routes: list[tuple[str, str, str]] ) -> int:
     connection = get_connection()
     cursor = connection.cursor()
 
-    cursor.execute("DELETE FROM routes WHERE airline = 'FR';")
+    cursor.execute("""
+            DELETE FROM routes 
+            WHERE airline = 'FR'
+            AND (originairport, destinationairport) NOT IN %s
+        """, (tuple([(r[1], r[2]) for r in routes]),))
 
     cursor.executemany("""
             INSERT INTO routes (airline, originairport, destinationairport)
             VALUES (%s, %s, %s)
+            ON CONFLICT (Airline, OriginAirport, DestinationAirport) DO UPDATE
+            SET datemodified = NOW()
         """, routes)
 
     connection.commit()
