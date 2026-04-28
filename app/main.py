@@ -4,7 +4,9 @@ from app.database import get_connection
 from psycopg2.extras import RealDictCursor
 from app.api.ryanair import get_all_airports, get_all_routes, get_all_schedules
 from app.logger import get_logger
-from app.services.db_sync import insert_airports_to_db, insert_routes_to_db, insert_schedules_to_db
+from app.models import FlightSearchRequest
+from app.services.db_sync import insert_airports_to_db, insert_routes_to_db, insert_schedules_to_db, \
+    get_all_airports_db, get_flight_search
 
 logger = get_logger(__name__)
 
@@ -34,16 +36,16 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"Failed to sync routes: {e}")
 
-    logger.info("Start fetching schedules...")
-    try:
-        all_schedules = get_all_schedules()
-        if all_schedules:
-            schedules_inserted = insert_schedules_to_db(schedules=all_schedules)
-            logger.info(f"Successfully inserted: {schedules_inserted} rows to schedules table")
-        else:
-            logger.warning(f"No schedules returned from API")
-    except Exception as e:
-        logger.error(f"Failed to sync schedules: {e}")
+##    logger.info("Start fetching schedules...")
+##    try:
+##        all_schedules = get_all_schedules()
+##        if all_schedules:
+##            schedules_inserted = insert_schedules_to_db(schedules=all_schedules)
+##            logger.info(f"Successfully inserted: {schedules_inserted} rows to schedules table")
+##        else:
+##            logger.warning(f"No schedules returned from API")
+##    except Exception as e:
+##        logger.error(f"Failed to sync schedules: {e}")
 
     yield
 
@@ -58,12 +60,16 @@ def health():
     return {"status": "ok"}
 
 
-@app.get("/db-test")
-def db_test():
-    conn = get_connection()
-    cursor = conn.cursor(cursor_factory=RealDictCursor)
-    cursor.execute("SELECT * FROM routes;")
-    rows = cursor.fetchall()
-    cursor.close()
-    conn.close()
-    return {"routes": rows}
+@app.get("/airports/origins")
+def airports_origins():
+    return {"airports": get_all_airports_db(code_only=False, from_poland=True)}
+
+
+@app.get("/airports/destinations")
+def airports_destinations():
+    return {"airports": get_all_airports_db(code_only=False, from_poland=False)}
+
+
+@app.post("/flights/search")
+def search_flights(request: FlightSearchRequest):
+    return get_flight_search(flight_search_request=request)

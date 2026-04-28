@@ -1,6 +1,6 @@
 import httpx
 from app.logger import get_logger
-from app.services.db_sync import get_all_polish_airports_db, get_all_routes_db
+from app.services.db_sync import get_all_routes_db, get_all_airports_db
 
 logger = get_logger(__name__)
 
@@ -26,7 +26,7 @@ def get_all_routes() -> list[tuple[str,str,str]]:
         logger.error(f"Failed to fetch routes for all airports: {e}")
         return []
     airports_dict = {airport["iataCode"]: airport for airport in routes_aggregated_json["airports"]}
-    airports = get_all_polish_airports_db()
+    airports = get_all_airports_db(code_only=True, from_poland=True)
     if not airports:
         logger.warning("No Polish airports found in DB")
         return []

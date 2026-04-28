@@ -1,5 +1,6 @@
-fastapi
+fastapi~=0.135.2
 uvicorn[standard]
-psycopg2-binary
-python-dotenv
-httpx
+psycopg2-binary~=2.9.11
+python-dotenv~=1.2.2
+httpx~=0.28.1
+pydantic~=2.12.5
