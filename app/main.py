@@ -1,12 +1,11 @@
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
-from app.database import get_connection
-from psycopg2.extras import RealDictCursor
-from app.api.ryanair import get_all_airports, get_all_routes, get_all_schedules
+from app.api.ryanair import get_all_airports, get_all_routes, get_all_schedules, get_one_way_fares
 from app.logger import get_logger
 from app.models import FlightSearchRequest
 from app.services.db_sync import insert_airports_to_db, insert_routes_to_db, insert_schedules_to_db, \
     get_all_airports_db, get_flight_search
+from app.utils import extract_fare_requests, enrich_candidates
 
 logger = get_logger(__name__)
 
@@ -72,4 +71,12 @@ def airports_destinations():
 
 @app.post("/flights/search")
 def search_flights(request: FlightSearchRequest):
-    return get_flight_search(flight_search_request=request)
+    candidates = get_flight_search(flight_search_request=request)
+    if not candidates:
+        return {"results": []}
+
+    fare_requests = extract_fare_requests(candidates=candidates)
+    one_way_fares = get_one_way_fares(api_calls=fare_requests)
+    enriched_candidates = enrich_candidates(candidates=candidates, fares=one_way_fares)
+
+    return {"results": enriched_candidates}
