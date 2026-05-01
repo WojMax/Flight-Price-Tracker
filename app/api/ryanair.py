@@ -2,6 +2,7 @@ import httpx
 from app.logger import get_logger
 from app.services.db_sync import get_all_routes_db, get_all_airports_db
 from app.utils import extract_flight_info
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 logger = get_logger(__name__)
 
@@ -71,20 +72,22 @@ def get_all_schedules() -> list[tuple[int,str]]:
         return []
 
 
-def get_one_way_fares(api_calls: list[tuple[str,str,str]]) -> list[tuple[str, str, str, str, str, float, str]]:
-    flights_list = []
-    for flight in api_calls:
-        origin = flight[0]
-        destination = flight[1]
-        month_date = flight[2]
+def get_one_way_fares(api_calls: list[tuple[str, str, str]]) -> list[tuple[str, str, str, str, str, float, str]]:
+    def fetch_single(flight: tuple[str, str, str]):
+        origin, destination, month_date = flight
         logger.info(f"Fetching flight {origin}->{destination} info for {month_date}")
         url = f'https://www.ryanair.com/api/farfnd/3/oneWayFares/{origin}/{destination}/cheapestPerDay?outboundMonthOfDate={month_date}&currency=PLN'
         try:
             response = httpx.get(url)
             response.raise_for_status()
-            flights_json = response.json()
-            flights_list.extend(extract_flight_info(flights=flights_json, origin=origin, destination=destination))
+            return extract_flight_info(flights=response.json(), origin=origin, destination=destination)
         except httpx.HTTPError as e:
             logger.error(f"Failed to fetch flight {origin}->{destination} info for {month_date}: {e}")
-            continue
+            return []
+
+    flights_list = []
+    with ThreadPoolExecutor() as executor:
+        futures = {executor.submit(fetch_single, flight): flight for flight in api_calls}
+        for future in as_completed(futures):
+            flights_list.extend(future.result())
     return flights_list
