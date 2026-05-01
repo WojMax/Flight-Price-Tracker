@@ -2,17 +2,26 @@ from typing import Any
 from datetime import datetime as dt, timedelta, date
 from decimal import Decimal
 import httpx
+from app.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 def fetch_holidays(start: date, end: date, country_code: str = "PL") -> set[date]:
     years = set(range(start.year, end.year + 1))
     holidays: set[date] = set()
     for year in years:
-        response = httpx.get(
-            f"https://date.nager.at/api/v3/PublicHolidays/{year}/{country_code}"
-        )
-        response.raise_for_status()
-        holidays |= {date.fromisoformat(h["date"]) for h in response.json()}
+        try:
+            response = httpx.get(
+                f"https://date.nager.at/api/v3/PublicHolidays/{year}/{country_code}"
+            )
+            response.raise_for_status()
+            holidays |= {date.fromisoformat(h["date"]) for h in response.json()}
+            logger.info(f"Fetched {len(holidays)} holidays for {country_code} {year}")
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Failed to fetch holidays for {country_code} {year}: HTTP {e.response.status_code}")
+        except httpx.RequestError as e:
+            logger.error(f"Network error fetching holidays for {country_code} {year}: {e}")
     return holidays
 
 

@@ -6,16 +6,9 @@ from app.models import FlightSearchRequest
 from app.services.db_sync import insert_airports_to_db, insert_routes_to_db, insert_schedules_to_db, \
     get_all_airports_db, get_flight_search
 from app.utils import extract_fare_requests, enrich_candidates, fetch_holidays
-import httpx
-from datetime import date
 
 
 logger = get_logger(__name__)
-
-
-def fetch_polish_holidays(year: int) -> set[date]:
-    response = httpx.get(f"https://date.nager.at/api/v3/PublicHolidays/{year}/PL")
-    return {date.fromisoformat(h["date"]) for h in response.json()}
 
 
 @asynccontextmanager
