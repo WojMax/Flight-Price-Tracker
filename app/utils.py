@@ -1,6 +1,32 @@
 from typing import Any
-from datetime import datetime as dt
+from datetime import datetime as dt, timedelta, date
 from decimal import Decimal
+import httpx
+
+
+def fetch_holidays(start: date, end: date, country_code: str = "PL") -> set[date]:
+    years = set(range(start.year, end.year + 1))
+    holidays: set[date] = set()
+    for year in years:
+        response = httpx.get(
+            f"https://date.nager.at/api/v3/PublicHolidays/{year}/{country_code}"
+        )
+        response.raise_for_status()
+        holidays |= {date.fromisoformat(h["date"]) for h in response.json()}
+    return holidays
+
+
+def analyze_pto(start: date, end: date, holidays: set[date]) -> dict[str, int]:
+    pto_days = 0
+    free_days = 0
+    current = start
+    while current <= end:
+        if current.weekday() >= 5 or current in holidays:
+            free_days += 1
+        else:
+            pto_days += 1
+        current += timedelta(days=1)
+    return {"pto_days": pto_days, "free_days": free_days}
 
 
 def extract_fare_requests(candidates: list[dict[str, Any]]) -> list[tuple[str, str, str]]:
@@ -23,7 +49,11 @@ def extract_fare_requests(candidates: list[dict[str, Any]]) -> list[tuple[str, s
     return list(fare_requests)
 
 
-def extract_flight_info(flights: dict[str, Any], origin: str, destination: str) -> list[tuple[str, str, str, str, str, float, str]]:
+def extract_flight_info(
+        flights: dict[str, Any],
+        origin: str,
+        destination: str
+) -> list[tuple[str, str, str, str, str, float, str]]:
     flights_info_list = []
     for flight_info in flights["outbound"]["fares"]:
         if not flight_info["soldOut"] and not flight_info["unavailable"]:
@@ -41,7 +71,11 @@ def extract_flight_info(flights: dict[str, Any], origin: str, destination: str) 
     return flights_info_list
 
 
-def enrich_candidates(candidates: list[dict[str, Any]], fares: list[tuple[str, str, str, str, str, float, str]]) -> list[dict[str, Any]]:
+def enrich_candidates(
+        candidates: list[dict[str, Any]],
+        fares: list[tuple[str, str, str, str, str, float, str]],
+        holidays: set[date]
+) -> list[dict[str, Any]]:
     enriched_candidates = []
     fare_lookup = {
         (fare[0], fare[1], fare[2]): fare  # key: (origin, destination, day)
@@ -67,6 +101,7 @@ def enrich_candidates(candidates: list[dict[str, Any]], fares: list[tuple[str, s
             outbound_arrival_dt = dt.fromisoformat(outbound_enrichment[4])
             return_departure_dt = dt.fromisoformat(return_enrichment[3])
             return_arrival_dt = dt.fromisoformat(return_enrichment[4])
+            pto = analyze_pto(candidate["outbound"], candidate["return"], holidays)
 
             enriched_candidates.append(
                 {
@@ -74,6 +109,8 @@ def enrich_candidates(candidates: list[dict[str, Any]], fares: list[tuple[str, s
                     "destination": candidate["destinationairport"],
                     "days": candidate["days"],
                     "hours": round(((return_departure_dt - outbound_arrival_dt).total_seconds() / 3600) * 2) / 2,
+                    "pto_days": pto["pto_days"],
+                    "free_days": pto["free_days"],
                     "outbound_date": candidate["outbound"],
                     "outbound_day": outbound_departure_dt.strftime("%A"),
                     "outbound_departure_hour": outbound_departure_dt.strftime("%H:%M"),

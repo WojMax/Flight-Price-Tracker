@@ -5,9 +5,17 @@ from app.logger import get_logger
 from app.models import FlightSearchRequest
 from app.services.db_sync import insert_airports_to_db, insert_routes_to_db, insert_schedules_to_db, \
     get_all_airports_db, get_flight_search
-from app.utils import extract_fare_requests, enrich_candidates
+from app.utils import extract_fare_requests, enrich_candidates, fetch_holidays
+import httpx
+from datetime import date
+
 
 logger = get_logger(__name__)
+
+
+def fetch_polish_holidays(year: int) -> set[date]:
+    response = httpx.get(f"https://date.nager.at/api/v3/PublicHolidays/{year}/PL")
+    return {date.fromisoformat(h["date"]) for h in response.json()}
 
 
 @asynccontextmanager
@@ -77,6 +85,6 @@ def search_flights(request: FlightSearchRequest):
 
     fare_requests = extract_fare_requests(candidates=candidates)
     one_way_fares = get_one_way_fares(api_calls=fare_requests)
-    enriched_candidates = enrich_candidates(candidates=candidates, fares=one_way_fares)
+    enriched_candidates = enrich_candidates(candidates=candidates, fares=one_way_fares, holidays=fetch_holidays(start=request.depart_from, end=request.depart_to))
 
     return {"results": enriched_candidates}
